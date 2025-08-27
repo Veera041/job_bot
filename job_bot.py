@@ -6,6 +6,8 @@ from dotenv import load_dotenv
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from telegram import Bot
 import httpx
+from fastapi import FastAPI
+import uvicorn
 
 # ------------------ Logging setup ------------------
 logging.basicConfig(level=logging.INFO)
@@ -80,7 +82,7 @@ async def send_to_telegram(jobs):
         except Exception as e:
             logger.error(f"Failed to send Telegram message: {e}")
 
-# ------------------ Task ------------------
+# ------------------ Job Task ------------------
 async def job_task():
     global sent_jobs
     logger.info("Checking for new jobs...")
@@ -102,7 +104,7 @@ async def job_task():
         logger.info("No new jobs found.")
 
 # ------------------ Scheduler ------------------
-async def main():
+async def start_scheduler():
     scheduler = AsyncIOScheduler()
     # Check every 15 minutes
     scheduler.add_job(job_task, "interval", minutes=15)
@@ -111,8 +113,18 @@ async def main():
     logger.info("Scheduler started. Running first job immediately...")
     await job_task()
 
-    while True:
-        await asyncio.sleep(3600)
+# ------------------ FastAPI App for Render ------------------
+app = FastAPI()
 
+@app.get("/")
+async def root():
+    return {"status": "Bot is running"}
+
+# ------------------ Main ------------------
 if __name__ == "__main__":
-    asyncio.run(main())
+    port = int(os.environ.get("PORT", 8000))
+    loop = asyncio.get_event_loop()
+    # Run the bot scheduler in the background
+    loop.create_task(start_scheduler())
+    # Start FastAPI server to bind port for Render
+    uvicorn.run(app, host="0.0.0.0", port=port)
